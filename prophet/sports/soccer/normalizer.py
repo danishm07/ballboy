@@ -51,6 +51,15 @@ ESPN_TYPE_MAP: dict[str, EventKind] = {
     "Full Time": EventKind.FULL_TIME,
     "Injury": EventKind.INJURY,
     "Video Review": EventKind.VAR_DECISION,
+    # ESPN soccer aliases observed in live data (e.g. UCL 401862895, May 2026).
+    # Without these, ~20 shot events per match silently fall through to OTHER
+    # and the features module's SHOT_EVENTS filter misses them.
+    "Shot On Target": EventKind.SHOT_ON_TARGET,
+    "Shot Off Target": EventKind.SHOT_OFF_TARGET,
+    "Handball": EventKind.FOUL,
+    "Halftime": EventKind.HALF_TIME,
+    "Start 2nd Half": EventKind.KICKOFF,
+    "End Regular Time": EventKind.FULL_TIME,
 }
 
 
