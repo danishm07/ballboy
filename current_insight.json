@@ -1,0 +1,38 @@
+{
+  "headline": "Disorganized back line vulnerable",
+  "body": "At minute 54, Portugal 2\u20131 Spain, ball zone away_attack, the away team is attacking near the goal, leaving a disorganized back line vulnerable to counter-attacks during slow transition.",
+  "urgency": "high",
+  "action": "Compact shape immediately and cover defensive half-spaces",
+  "generated_ms": 3712,
+  "analyst_ms": 2649,
+  "analyst_times": {
+    "offensive": 886,
+    "physical": 1840,
+    "defensive": 2649
+  },
+  "synthesizer_ms": 1062,
+  "minute": 54,
+  "analysts": {
+    "offensive": {
+      "insight": "Space behind opposition right back during transition",
+      "urgency": "high",
+      "action": "Play early diagonal ball into the channel"
+    },
+    "physical": {
+      "insight": "Minute 54 \u2014 late match fatigue rising, pressing intensity likely dropping, substitution window opening.",
+      "urgency": "medium",
+      "action": "Prepare fresh wide and central midfielders to maintain the lead."
+    },
+    "defensive": {
+      "insight": "Disorganized back line vulnerable to counter-attacks during slow transition",
+      "urgency": "high",
+      "action": "Compact shape immediately and cover defensive half-spaces"
+    }
+  },
+  "prediction": {
+    "goal_probability": 80,
+    "sub_probability": 45,
+    "momentum": 62,
+    "minutes_remaining": 36
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "team_home": "Arsenal FC",
+  "team_away": "Manchester City FC",
+  "minute": 60,
+  "score": {
+    "home": 1,
+    "away": 0
+  },
+  "possession_pct": {
+    "home": 50,
+    "away": 50
+  },
+  "ball_zone": "unknown",
+  "team_shape": "unknown",
+  "visible_events": [],
+  "confidence": 0.9,
+  "timestamp": 1778986394.785322
+}

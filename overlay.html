@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: #0d0d0d;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    width: 360px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Bounding Box Overlay Canvas */
+  #overlay-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 70vw;  /* Match the captured region width */
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9999;
+    background: rgba(0, 255, 0, 0.05);  /* Debug: slight green tint */
+  }
+
+  .header {
+    padding: 14px 16px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #1a1a1a;
+  }
+
+  .logo {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #fff;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: #666;
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #444;
+    transition: background 0.3s;
+  }
+
+  .live-dot.active { background: #ff4444; animation: pulse 1.5s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .match-info {
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #111;
+  }
+
+  .teams { font-size: 11px; color: #888; }
+  .score-min { font-size: 13px; font-weight: 600; color: #fff; }
+
+  /* PITCH */
+  .pitch-container {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1a1a1a;
+  }
+
+  .pitch {
+    background: #1a3a1a;
+    border-radius: 6px;
+    width: 100%;
+    height: 130px;
+    position: relative;
+    border: 1px solid #2a4a2a;
+    overflow: hidden;
+  }
+
+  .pitch-line {
+    position: absolute;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .pitch-center-line {
+    left: 50%; top: 0; width: 1px; height: 100%;
+  }
+
+  .pitch-center-circle {
+    left: 50%; top: 50%;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.1);
+    transform: translate(-50%, -50%);
+    position: absolute;
+    background: none;
+  }
+
+  .player-dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    transition: all 0.5s ease;
+    border: 1.5px solid rgba(255,255,255,0.3);
+  }
+
+  .player-dot.home { background: #4a9eff; }
+  .player-dot.away { background: #ff6b4a; }
+  .player-dot:hover { transform: translate(-50%, -50%) scale(1.5); z-index: 10; }
+
+
+  /* MAIN INSIGHT CARD */
+  .insight-card {
+    margin: 12px 16px;
+    background: #141414;
+    border-radius: 10px;
+    padding: 14px;
+    border-left: 3px solid #333;
+    transition: border-color 0.4s ease;
+    flex-shrink: 0;
+  }
+
+  .insight-card.high { border-left-color: #ff4444; }
+  .insight-card.medium { border-left-color: #ffaa00; }
+  .insight-card.low { border-left-color: #44aa44; }
+
+  .urgency-tag {
+    font-size: 9px;
+    letter-spacing: 2px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #666;
+  }
+
+  .urgency-tag.high { color: #ff4444; }
+  .urgency-tag.medium { color: #ffaa00; }
+  .urgency-tag.low { color: #44aa44; }
+
+  .insight-headline {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+
+  .insight-body {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+
+  .insight-action {
+    background: #1e1e1e;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #ccc;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .insight-action::before { content: "→"; color: #666; }
+
+  .timing {
+    margin-top: 8px;
+    font-size: 10px;
+    color: #333;
+    display: flex;
+    gap: 8px;
+  }
+
+  .timing span { color: #555; }
+
+  /* ANALYST CHAT */
+  .chat-section {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #1a1a1a;
+  }
+
+  .chat-label {
+    padding: 8px 16px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #444;
+    flex-shrink: 0;
+  }
+
+  .chat-feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chat-feed::-webkit-scrollbar { width: 3px; }
+  .chat-feed::-webkit-scrollbar-track { background: transparent; }
+  .chat-feed::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+
+  .chat-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .chat-name {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #555;
+  }
+
+  .chat-name.defensive { color: #4a9eff; }
+  .chat-name.offensive { color: #ff6b4a; }
+  .chat-name.physical { color: #44aa44; }
+
+  .chat-text {
+    font-size: 12px;
+    color: #aaa;
+    line-height: 1.4;
+    background: #111;
+    padding: 7px 10px;
+    border-radius: 0 8px 8px 8px;
+  }
+
+  .chat-urgency {
+    font-size: 9px;
+    color: #444;
+    padding-left: 2px;
+  }
+
+  .footer {
+    padding: 8px 16px;
+    font-size: 10px;
+    color: #444;
+    text-align: center;
+    border-top: 1px solid #1a1a1a;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="overlay-canvas"></canvas>
+
+<div class="header">
+  <div class="logo">BALLBOY</div>
+  <div class="live-badge">
+    <div class="live-dot" id="live-dot"></div>
+    <span id="live-status">CONNECTING</span>
+  </div>
+</div>
+
+<div class="match-info">
+  <div class="teams" id="teams">— vs —</div>
+  <div class="score-min" id="score-min">—</div>
+</div>
+
+<div class="pitch-container">
+  <div class="pitch" id="pitch">
+    <div class="pitch-line pitch-center-line"></div>
+    <div class="pitch-center-circle"></div>
+  </div>
+</div>
+
+<div class="insight-card low" id="insight-card">
+  <div class="urgency-tag low" id="urgency-tag">WAITING</div>
+  <div class="insight-headline" id="headline">Starting up...</div>
+  <div class="insight-body" id="body">Waiting for match data.</div>
+  <div class="insight-action" id="action">Run analysis pipeline</div>
+  <div class="timing">
+    <span id="timing-total">—</span>
+    <span id="timing-analysts">—</span>
+  </div>
+</div>
+
+<div class="chat-section">
+  <div class="chat-label">ANALYST FEED</div>
+  <div class="chat-feed" id="chat-feed"></div>
+</div>
+
+<div class="footer">4 models · 1.8s · Wafer</div>
+
+<script>
+// WebSocket connection for real-time detections
+console.log('[overlay] loading Socket.IO...');
+const socket = io({
+  transports: ['websocket', 'polling'],  // Try WebSocket first, fallback to polling
+  reconnectionAttempts: 5
+});
+let currentDetections = { players: [], total: 0, width: 0, height: 0 };
+
+// Canvas setup
+const canvas = document.getElementById('overlay-canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth * 0.7;  // Match the 70% captured region
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// WebSocket event handlers
+socket.on('connect', () => {
+  console.log('[overlay] connected to server');
+  document.getElementById('live-status').textContent = 'LIVE';
+  document.getElementById('live-dot').className = 'live-dot active';
+});
+
+socket.on('connect_error', (error) => {
+  console.error('[overlay] connection error:', error);
+  document.getElementById('live-status').textContent = 'WS ERROR';
+  // Fallback to polling if WebSocket fails
+  setInterval(async () => {
+    try {
+      const r = await fetch('/detections');
+      const data = await r.json();
+      if (data.total > 0) {
+        currentDetections = data;
+        renderDetections();
+      }
+    } catch(e) {
+      console.error('[overlay] polling error:', e);
+    }
+  }, 100);  // Poll at 10 FPS as fallback
+});
+
+socket.on('disconnect', () => {
+  console.log('[overlay] disconnected from server');
+  document.getElementById('live-status').textContent = 'OFFLINE';
+  document.getElementById('live-dot').className = 'live-dot';
+});
+
+socket.on('detections', (data) => {
+  console.log('[overlay] received detections:', data.total, 'players');
+  currentDetections = data;
+  renderDetections();
+});
+
+function renderDetections() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  console.log('[overlay] rendering', currentDetections.total, 'players, canvas size:', canvas.width, 'x', canvas.height, 'detection size:', currentDetections.width, 'x', currentDetections.height);
+
+  // Scale factor: detection coordinates are based on the captured region (70% of monitor width)
+  // Canvas is sized to 70% of browser window width, so we need to scale accordingly
+  const scaleX = canvas.width / currentDetections.width;
+  const scaleY = canvas.height / currentDetections.height;
+
+  console.log('[overlay] scale factors:', scaleX, scaleY);
+
+  currentDetections.players.forEach((p) => {
+    const x1 = p.x1 * scaleX;
+    const y1 = p.y1 * scaleY;
+    const x2 = p.x2 * scaleX;
+    const y2 = p.y2 * scaleY;
+
+    console.log('[overlay] drawing box:', x1, y1, x2, y2);
+
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+    if (p.id !== null) {
+      ctx.fillStyle = '#00ff00';
+      ctx.font = '16px Arial';
+      ctx.fillText(`ID:${p.id}`, x1, y1 - 6);
+    }
+  });
+}
+
+const FORMATIONS = {
+  "4-3-3": {
+    home: [
+      {x:8,y:50},{x:20,y:15},{x:20,y:38},{x:20,y:62},{x:20,y:85},
+      {x:38,y:25},{x:38,y:50},{x:38,y:75},
+      {x:52,y:20},{x:52,y:50},{x:52,y:80}
+    ],
+    away: [
+      {x:92,y:50},{x:80,y:15},{x:80,y:38},{x:80,y:62},{x:80,y:85},
+      {x:62,y:25},{x:62,y:50},{x:62,y:75},
+      {x:48,y:20},{x:48,y:50},{x:48,y:80}
+    ]
+  }
+};
+
+let chatMessages = [];
+let lastInsight = null;
+let lastMinute = null;
+let lastHeadline = null;
+let lastInsightUpdate = 0;
+
+const ANALYST_NAMES = {
+  defensive: "scout_def",
+  offensive: "scout_att", 
+  physical: "physio_bot"
+};
+
+function renderPitch(state) {
+  const pitch = document.getElementById('pitch');
+  pitch.querySelectorAll('.player-dot').forEach(d => d.remove());
+  
+  const formation = FORMATIONS["4-3-3"];
+  
+  [...formation.home, ...formation.away].forEach((pos, i) => {
+    const isHome = i < formation.home.length;
+    const dot = document.createElement('div');
+    dot.className = `player-dot ${isHome ? 'home' : 'away'}`;
+    dot.style.left = pos.x + '%';
+    dot.style.top = pos.y + '%';
+    
+    pitch.appendChild(dot);
+  });
+}
+
+function addChatMessage(analyst, insight, urgency) {
+  const feed = document.getElementById('chat-feed');
+  
+  // Clear old messages if headline changed
+  if (lastHeadline !== document.getElementById('headline').textContent) {
+    feed.innerHTML = '';
+    lastHeadline = document.getElementById('headline').textContent;
+  }
+  
+  // Only add if we have less than 2 messages
+  if (feed.children.length >= 2) return;
+  
+  const msg = document.createElement('div');
+  msg.className = 'chat-msg';
+  msg.innerHTML = `
+    <div class="chat-name ${analyst}">${ANALYST_NAMES[analyst] || analyst}</div>
+    <div class="chat-text">${insight}</div>
+    <div class="chat-urgency">${urgency}</div>
+  `;
+  feed.appendChild(msg);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+async function fetchState() {
+  try {
+    const r = await fetch('/state');
+    const state = await r.json();
+    if (!state.team_home) return;
+    
+    document.getElementById('teams').textContent = 
+      `${state.team_home?.split(' ')[0]} vs ${state.team_away?.split(' ')[0]}`;
+    
+    const min = state.minute || '—';
+    const sh = state.score?.home ?? '—';
+    const sa = state.score?.away ?? '—';
+    document.getElementById('score-min').textContent = `${sh}–${sa}  ${min}'`;
+    
+    renderPitch(state);
+  } catch(e) {}
+}
+
+async function fetchInsight() {
+  try {
+    const now = Date.now();
+    // Rate limit: only update once every 20 seconds
+    if (now - lastInsightUpdate < 20000) return;
+    
+    const r = await fetch('/insight');
+    const data = await r.json();
+    
+    if (JSON.stringify(data) === JSON.stringify(lastInsight)) return;
+    
+    const isNew = lastInsight !== null;
+    lastInsight = data;
+    lastInsightUpdate = now;
+    
+    const card = document.getElementById('insight-card');
+    const urgency = data.urgency || 'low';
+    
+    card.className = 'insight-card ' + urgency;
+    document.getElementById('urgency-tag').className = 'urgency-tag ' + urgency;
+    document.getElementById('urgency-tag').textContent = urgency.toUpperCase();
+    document.getElementById('headline').textContent = data.headline || '—';
+    
+    // Truncate body to first sentence only
+    const bodyText = data.body || '—';
+    const firstSentence = bodyText.split('.')[0] + (bodyText.includes('.') ? '.' : '');
+    document.getElementById('body').textContent = firstSentence;
+    
+    document.getElementById('action').textContent = data.action || '—';
+    document.getElementById('timing-total').textContent = `${data.generated_ms}ms total`;
+    document.getElementById('timing-analysts').textContent = `${data.analyst_ms}ms analysts`;
+    
+    document.getElementById('live-dot').className = 'live-dot active';
+    document.getElementById('live-status').textContent = 'LIVE';
+    
+    if (isNew && data.analysts) {
+      Object.entries(data.analysts).forEach(([name, result]) => {
+        if (result.insight) addChatMessage(name, result.insight, result.urgency);
+      });
+    }
+    
+  } catch(e) {
+    document.getElementById('live-status').textContent = 'OFFLINE';
+  }
+}
+
+renderPitch({});
+setInterval(fetchState, 3000);
+setInterval(fetchInsight, 2000);
+fetchState();
+fetchInsight();
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background: #000;
+    overflow: hidden;
+  }
+
+  #overlay-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 70vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9999;
+    background: rgba(0, 255, 0, 0.1);
+  }
+
+  #status {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    color: #fff;
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 10px;
+    z-index: 10000;
+  }
+</style>
+</head>
+<body>
+
+<div id="status">Loading...</div>
+<canvas id="overlay-canvas"></canvas>
+
+<script>
+console.log('[test] loading Socket.IO...');
+const socket = io({
+  transports: ['websocket', 'polling'],
+  reconnectionAttempts: 5
+});
+
+let currentDetections = { players: [], total: 0, width: 0, height: 0 };
+
+const canvas = document.getElementById('overlay-canvas');
+const ctx = canvas.getContext('2d');
+const status = document.getElementById('status');
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth * 0.7;
+  canvas.height = window.innerHeight;
+  status.textContent = `Canvas: ${canvas.width}x${canvas.height}`;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+socket.on('connect', () => {
+  console.log('[test] connected to server');
+  status.textContent = 'Connected via WebSocket';
+  status.style.color = '#0f0';
+});
+
+socket.on('connect_error', (error) => {
+  console.error('[test] connection error:', error);
+  status.textContent = 'WS Error - trying polling...';
+  status.style.color = '#f00';
+  
+  // Fallback to polling
+  setInterval(async () => {
+    try {
+      const r = await fetch('/detections');
+      const data = await r.json();
+      status.textContent = `Polling: ${data.total} players`;
+      currentDetections = data;
+      renderDetections();
+    } catch(e) {
+      console.error('[test] polling error:', e);
+      status.textContent = 'Polling error';
+    }
+  }, 100);
+});
+
+socket.on('disconnect', () => {
+  console.log('[test] disconnected');
+  status.textContent = 'Disconnected';
+  status.style.color = '#f00';
+});
+
+socket.on('detections', (data) => {
+  console.log('[test] received detections:', data.total, 'players');
+  status.textContent = `WS: ${data.total} players`;
+  currentDetections = data;
+  renderDetections();
+});
+
+function renderDetections() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  if (currentDetections.total === 0) return;
+  
+  console.log('[test] rendering', currentDetections.total, 'players');
+  
+  const scaleX = canvas.width / currentDetections.width;
+  const scaleY = canvas.height / currentDetections.height;
+  
+  currentDetections.players.forEach((p) => {
+    const x1 = p.x1 * scaleX;
+    const y1 = p.y1 * scaleY;
+    const x2 = p.x2 * scaleX;
+    const y2 = p.y2 * scaleY;
+    
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    
+    if (p.id !== null) {
+      ctx.fillStyle = '#00ff00';
+      ctx.font = '20px Arial';
+      ctx.fillText(`ID:${p.id}`, x1, y1 - 8);
+    }
+  });
+}
+</script>
+</body>
+</html>

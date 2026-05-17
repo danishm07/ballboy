@@ -1,0 +1,12 @@
+flask
+flask-cors
+flask-socketio
+ultralytics
+opencv-python
+numpy
+mss
+pillow
+python-dotenv
+openai
+requests
+anthropic
