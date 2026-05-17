@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ballboy Overlay</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="layout">
+    <div class="col col-players">
+      <header class="match-header">
+        <div class="match-header-main">
+          <span class="match-teams" id="matchTeams">—</span>
+          <span class="match-score" id="matchScore">—</span>
+        </div>
+        <span class="match-minute" id="matchMinute">—'</span>
+      </header>
+
+      <div class="momentum-block">
+        <div class="momentum-label">MOMENTUM</div>
+        <div class="momentum-bar" id="momentumBar">
+          <div class="momentum-half momentum-home" id="momentumHomeHalf"></div>
+          <div class="momentum-half momentum-away" id="momentumAwayHalf"></div>
+          <div class="momentum-marker" id="momentumMarker"></div>
+        </div>
+      </div>
+
+      <section class="team-section">
+        <h2 class="team-heading" id="homeHeading">HOME</h2>
+        <div class="player-grid" id="homeGrid"></div>
+      </section>
+
+      <section class="team-section">
+        <h2 class="team-heading" id="awayHeading">AWAY</h2>
+        <div class="player-grid" id="awayGrid"></div>
+      </section>
+    </div>
+
+    <div class="col col-analysis">
+      <header class="analysis-header">
+        <div class="analysis-header-top">
+          <h1 class="analysis-title">BALLBOY ANALYSIS</h1>
+          <div class="inference-hud" id="inferenceHud" hidden>
+            <span class="inference-analyzing" id="inferenceAnalyzing">● ANALYZING</span>
+            <span class="inference-agents" id="inferenceAgents"></span>
+            <span class="inference-duration" id="inferenceDuration"></span>
+          </div>
+        </div>
+        <time class="analysis-time" id="analysisTime">—</time>
+      </header>
+
+      <div class="insight-headline" id="insightHeadline">Waiting for analysis…</div>
+      <div class="insight-action" id="insightAction"></div>
+
+      <div class="predictions">
+        <div class="pred-row">
+          <span class="pred-label">Goal</span>
+          <div class="pred-bar"><div class="pred-fill pred-goal" id="goalBar"></div></div>
+          <span class="pred-pct" id="goalPct">—</span>
+        </div>
+        <div class="pred-row">
+          <span class="pred-label">Substitution</span>
+          <div class="pred-bar"><div class="pred-fill pred-sub" id="subBar"></div></div>
+          <span class="pred-pct" id="subPct">—</span>
+        </div>
+        <div class="pred-row">
+          <span class="pred-label">Shot on target</span>
+          <div class="pred-bar"><div class="pred-fill pred-shot" id="shotBar"></div></div>
+          <span class="pred-pct" id="shotPct">—</span>
+        </div>
+      </div>
+
+      <hr class="section-divider" />
+
+      <button type="button" class="simulate-btn" id="simulateBtn">→ Simulate next 10 min</button>
+
+      <div class="simulate-panel" id="simulatePanel" hidden>
+        <pre class="thinking-stream" id="thinkingStream"></pre>
+        <ul class="scenario-list" id="scenarioList"></ul>
+      </div>
+
+      <footer class="footer-meta" id="footerMeta">4 models · — · Wafer</footer>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

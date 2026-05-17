@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ballboy — Lineup</title>
+  <link rel="stylesheet" href="players.css">
+</head>
+<body>
+  <header class="window-header" id="windowHeader">
+    <span class="window-header-title" id="headerTitle">LINEUP</span>
+    <span class="window-header-meta" id="headerMeta">—</span>
+    <button type="button" class="window-header-toggle" id="windowCollapseToggle" aria-label="Collapse window">−</button>
+  </header>
+
+  <motion class="window-body" id="windowBody">
+    <div class="prematch-badge" id="prematchBadge" hidden>PRE-MATCH</div>
+    <p class="prematch-note" id="prematchNote" hidden>Lineup loaded — match not started</p>
+    <section class="team-list-block">
+      <h2 class="team-list-label" id="homeLabel">HOME</h2>
+      <div class="player-list" id="homeList"></div>
+    </section>
+    <section class="team-list-block">
+      <h2 class="team-list-label" id="awayLabel">AWAY</h2>
+      <div class="player-list" id="awayList"></motion>
+    </section>
+
+  </div>
+
+  <script src="shared.js"></script>
+  <script src="players.js"></script>
+  <script>
+    window.currentMinute = 0
+    window.playerLineups = { home: [], away: [] }
+
+    const { ipcRenderer } = require('electron')
+    const apiBase = window.API || 'http://localhost:5001'
+
+    fetch(apiBase + '/unified_state')
+      .then((r) => r.json())
+      .then((data) => {
+        console.log('lineup home:', data?.lineup?.home?.length)
+        console.log('lineup away:', data?.lineup?.away?.length)
+        console.log('first player:', data?.lineup?.home?.[0])
+        const homeLabel = document.getElementById('homeLabel')
+        const awayLabel = document.getElementById('awayLabel')
+        if (homeLabel) homeLabel.textContent = data?.match?.team_home || 'HOME'
+        if (awayLabel) awayLabel.textContent = data?.match?.team_away || 'AWAY'
+      })
+      .catch((err) => console.error('lineup debug fetch failed:', err))
+
+    document.getElementById('windowCollapseToggle').addEventListener('click', () => {
+      const body = document.getElementById('windowBody')
+      const isCollapsed = body.hidden
+      body.hidden = !isCollapsed
+      document.getElementById('windowCollapseToggle').textContent = isCollapsed ? '−' : '+'
+      ipcRenderer.send('toggle-players', !isCollapsed)
+    })
+  </script>
+</body>
+</html>

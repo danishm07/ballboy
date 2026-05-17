@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ballboy — Analysis</title>
+  <link rel="stylesheet" href="analysis.css">
+</head>
+<body>
+  <header class="window-header" id="windowHeader">
+    <span class="window-header-title">BALLBOY ANALYSIS</span>
+    <span class="window-header-agents" id="headerAgents"></span>
+    <button type="button" class="mute-btn" id="muteBtn" onclick="toggleMute()" title="Toggle voice alerts">🔊</button>
+    <button type="button" class="window-header-toggle" id="windowCollapseToggle" aria-label="Collapse window">−</button>
+  </header>
+
+  <div class="window-body" id="windowBody">
+    <div class="momentum-block">
+      <div class="momentum-label" id="momentumLabel">— ←→ —</div>
+      <div class="momentum-bar-wrap">
+        <div class="momentum-bar" id="momentumBar">
+          <div class="momentum-segment momentum-home" id="momentumHomeSegment"></div>
+          <div class="momentum-segment momentum-away" id="momentumAwaySegment"></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="match-context" id="matchContext">—</p>
+
+    <div class="coach-alert" id="coachAlert" hidden>⚡ COACH ALERT</div>
+    <div class="insight-headline" id="insightHeadline">Waiting for analysis…</div>
+    <p class="insight-updated" id="insightUpdated"></p>
+
+    <section class="agent-section collapsed" id="agentSection">
+      <div class="log-tabs">
+        <button type="button" class="log-tab active" data-tab="analysis" id="tabAnalysis">ANALYSIS</button>
+        <button type="button" class="log-tab" data-tab="sources" id="tabSources">DATA SOURCES</button>
+      </div>
+      <button type="button" class="agent-section-toggle" id="agentToggle" aria-expanded="false">
+        <span class="agent-chevron">▼</span> <span id="agentToggleLabel">Analysis log</span>
+      </button>
+      <div class="agent-panel" id="agentPanel"></div>
+      <div class="data-sources-panel" id="dataSourcesPanel" hidden>
+        <div id="dataSourcesList" class="data-sources-list"></div>
+        <p class="data-sources-total" id="dataSourcesTotal">—</p>
+      </div>
+    </section>
+
+    <div class="predictions" id="predictions">
+      <div class="quant-block" id="goalQuant"></div>
+      <div class="quant-block" id="subQuant"></div>
+      <div class="quant-block" id="pressQuant"></div>
+    </div>
+
+    <hr class="section-divider" />
+
+    <section class="predict-section collapsed" id="predictSection">
+      <button type="button" class="predict-section-toggle" id="predictToggle" aria-expanded="false">
+        <span class="predict-toggle-label">→ Predict Next 5 Minutes</span>
+        <span class="predict-chevron">▼</span>
+      </button>
+      <div class="predict-section-body" id="predictSectionBody" hidden>
+        <button type="button" class="simulate-btn" id="runPredictBtn">→ Predict Next 5 Minutes</button>
+        <p class="predict-context" id="predictContext" hidden></p>
+        <div class="predict-terminal" id="predictTerminal" hidden></div>
+        <div class="simulate-loading" id="simulateLoading" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="loading-text" id="simulateProgressText">Running scenario 0/3...</span>
+          <span class="loading-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+        </div>
+        <ul class="scenario-tree" id="scenarioTree"></ul>
+      </div>
+    </section>
+
+    <footer class="footer-meta" id="footerMeta">4 models · — · Wafer</footer>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    window.isMuted = false
+    const muteApi = window.API || 'http://localhost:5001'
+    fetch(muteApi + '/mute')
+      .then((r) => r.json())
+      .then((data) => {
+        window.isMuted = !!data.muted
+        const btn = document.getElementById('muteBtn')
+        if (btn) btn.textContent = window.isMuted ? '🔇' : '🔊'
+      })
+      .catch(() => {})
+    window.toggleMute = async function toggleMute() {
+      const btn = document.getElementById('muteBtn')
+      const nextMuted = !window.isMuted
+      try {
+        const res = await fetch(muteApi + '/mute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ muted: nextMuted })
+        })
+        const data = await res.json()
+        window.isMuted = !!data.muted
+      } catch (err) {
+        console.error('[mute] failed:', err)
+        window.isMuted = nextMuted
+      }
+      if (btn) btn.textContent = window.isMuted ? '🔇' : '🔊'
+    }
+  </script>
+  <script src="analysis.js"></script>
+</body>
+</html>

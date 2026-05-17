@@ -1,0 +1,39 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  overflow: hidden;
+}
+
+#overlay {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.detection-box {
+  position: absolute;
+  background: transparent;
+  pointer-events: none;
+}
+
+/* Portugal / home — left half — red */
+.detection-box.team-home {
+  border: 2px solid #c8102e;
+}
+
+/* Spain / away — right half — blue */
+.detection-box.team-away {
+  border: 2px solid #2563eb;
+}
+
+/* Referee — yellow */
+.detection-box.team-referee {
+  border: 1px solid #e6c200;
+}

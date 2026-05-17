@@ -1,0 +1,14 @@
+{
+  "name": "ballboy-overlay",
+  "version": "1.0.0",
+  "description": "Native always-on-top desktop overlay for macOS",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "electron": "*"
+  }
+}
