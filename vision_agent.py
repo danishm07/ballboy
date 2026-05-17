@@ -17,6 +17,8 @@ vision_client = OpenAI(
     base_url="https://openrouter.ai/api/v1"
 )
 
+last_known_possession = 50
+
 def capture_frame():
     with mss.mss() as sct:
         monitor = sct.monitors[1]
@@ -28,7 +30,7 @@ def capture_frame():
         }
         screenshot = sct.grab(region)
         img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
-        img = img.resize((1280, 720))
+        img = img.resize((854, 480))
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=80)
         return base64.b64encode(buffer.getvalue()).decode()
@@ -74,23 +76,50 @@ Return ONLY the JSON object, nothing else."""
         content = content[start:end]
     return json.loads(content)
 
+def resolve_possession_home(vision_data):
+    """Use last good possession when HUD is missing (50 + low confidence)."""
+    global last_known_possession
+    confidence = float(vision_data.get("confidence", 0.5) or 0.5)
+    raw = vision_data.get("possession_home")
+
+    if confidence > 0.7 and raw is not None:
+        try:
+            val = int(raw)
+            if 0 < val < 100:
+                last_known_possession = val
+                return val
+        except (TypeError, ValueError):
+            pass
+
+    if raw is not None:
+        try:
+            val = int(raw)
+            if val == 50 and confidence < 0.7:
+                return last_known_possession
+            if 0 < val < 100:
+                return val
+        except (TypeError, ValueError):
+            pass
+
+    if confidence < 0.7:
+        return last_known_possession
+
+    history = us.read().get("possession_history", [])
+    if len(history) >= 3:
+        weights = list(range(1, len(history) + 1))
+        possession_home = round(
+            sum(h * w for h, w in zip(history, weights)) / sum(weights)
+        )
+        return max(30, min(70, possession_home))
+
+    return last_known_possession
+
+
 def write_state(vision_data, team_home, team_away):
     minute = vision_data.get("minute") or 0
     score_home = vision_data.get("score_home") or 0
     score_away = vision_data.get("score_away") or 0
-    raw = vision_data.get("possession_home")
-    if raw is None or raw <= 0 or raw >= 100:
-        history = us.read().get("possession_history", [])
-        if len(history) >= 3:
-            weights = list(range(1, len(history) + 1))
-            possession_home = round(
-                sum(h * w for h, w in zip(history, weights)) / sum(weights)
-            )
-            possession_home = max(30, min(70, possession_home))
-        else:
-            possession_home = 50
-    else:
-        possession_home = int(raw)
+    possession_home = resolve_possession_home(vision_data)
 
     us.update("match", {
         "minute": minute,
@@ -119,7 +148,11 @@ def write_state(vision_data, team_home, team_away):
         state.setdefault("stats", {})["possession_home"] = possession_home
         state["stats"]["possession_away"] = 100 - possession_home
 
-    state["prediction"] = get_all_predictions(state)
+    predictions = get_all_predictions(state)
+    raw_momentum = predictions.get("momentum", 50)
+    predictions["momentum"] = us.smooth_momentum(state, raw_momentum)
+    state["smoothed_momentum"] = predictions["momentum"]
+    state["prediction"] = predictions
     us.write(state)
     return state
 
@@ -139,7 +172,7 @@ def run(team_home="Arsenal FC", team_away="Manchester City FC"):
         except Exception as e:
             print(f"[vision] error: {e}")
 
-        time.sleep(5)
+        time.sleep(3)
 
 if __name__ == "__main__":
     import sys

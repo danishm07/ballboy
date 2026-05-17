@@ -1,40 +1,28 @@
 {
-  "match": {
-    "minute": 0,
-    "score": {
-      "home": 0,
-      "away": 0
+  "source": "statsbomb",
+  "competition_id": 43,
+  "season_id": 3,
+  "match_id": 7580,
+  "match_date": "2018-06-30",
+  "team_home": "France",
+  "team_away": "Argentina",
+  "home_xg": 1.64,
+  "away_xg": 1.45,
+  "home_possession_avg": 38.1,
+  "away_possession_avg": 61.9,
+  "possession_by_period": {
+    "1": {
+      "France": 37.6,
+      "Argentina": 62.4
     },
-    "team_home": "France",
-    "team_away": "Argentina"
+    "2": {
+      "France": 38.7,
+      "Argentina": 61.3
+    }
   },
-  "vision": {
-    "possession_home": 50,
-    "ball_zone": "unknown",
-    "team_shape": "unknown",
-    "tactical_description": "N/A",
-    "confidence": 0.1,
-    "pressing_intensity": "unknown"
-  },
-  "stats": {
-    "shots_home": 0,
-    "shots_away": 0,
-    "shots_on_target_home": 0,
-    "shots_on_target_away": 0,
-    "possession_home": 49,
-    "possession_away": 51,
-    "fouls_home": 0,
-    "fouls_away": 0,
-    "subs_made_home": 0,
-    "subs_made_away": 0,
-    "live_xg_home": 0,
-    "live_xg_away": 0,
-    "home_xg_season": 1.64,
-    "away_xg_season": 1.45,
-    "home_possession_avg": 38.1,
-    "away_possession_avg": 61.9,
-    "press_events_home": 281,
-    "press_events_away": 180
+  "press_events": {
+    "home": 281,
+    "away": 180
   },
   "lineup": {
     "home": [
@@ -173,27 +161,5 @@
         "formation_index": 10
       }
     ]
-  },
-  "prediction": {
-    "goal_probability": 88,
-    "substitution_probability": 2,
-    "shots_on_target_probability": 100,
-    "momentum": 49,
-    "minutes_remaining": 90
-  },
-  "possession_history": [
-    50,
-    50,
-    50,
-    50,
-    50,
-    50,
-    50,
-    50,
-    50,
-    50
-  ],
-  "smoothed_momentum": 49,
-  "events": [],
-  "timestamp": 1779023400.222792
+  }
 }

@@ -103,7 +103,7 @@ No LLM imports.
 
 | Call                                        | Updates                                                                                                                       |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `/fixtures/statistics?fixture={id}`         | `shots_`*, `shots_on_target_*`, `possession_*`, `fouls_*`, `live_xg_*` (parse `Expected Goals` type if present; else leave 0) |
+| `/fixtures/statistics?fixture={id}`         | `shots_`*, `shots_on_target_`*, `possession_*`, `fouls_*`, `live_xg_*` (parse `Expected Goals` type if present; else leave 0) |
 | `/fixtures/events?fixture={id}`             | `events[]` + recount `subs_made_home` / `subs_made_away` from `type=subst`                                                    |
 | Optional: fixture status endpoint or events | `match.minute`, `match.score` from API when available                                                                         |
 

@@ -9,7 +9,34 @@ import unified_state as us
 load_dotenv()
 client = anthropic.Anthropic()
 
-MODEL = "GLM-5.1"
+MODEL = "Qwen3.5-397B-A17B"
+
+SIMULATE_PROGRESS = {"running": False, "completed": 0, "total": 0}
+
+
+def get_simulate_progress():
+    return dict(SIMULATE_PROGRESS)
+
+
+def stream_simulate_progress():
+    """SSE stream of simulation progress for /simulate/progress."""
+    last_payload = None
+    idle_ticks = 0
+    while idle_ticks < 40:
+        prog = get_simulate_progress()
+        payload = json.dumps(prog)
+        if payload != last_payload:
+            yield f"data: {payload}\n\n"
+            last_payload = payload
+            idle_ticks = 0
+        if not prog.get("running"):
+            total = prog.get("total") or 0
+            if total > 0 and prog.get("completed", 0) >= total:
+                break
+            idle_ticks += 1
+        else:
+            idle_ticks = 0
+        time.sleep(0.25)
 
 FORMATION_433 = {
     "home": [
@@ -43,17 +70,29 @@ FORMATION_433 = {
 
 def build_scenario_seeds(state):
     match = state.get("match", {})
-    home = match.get("team_home", "Home")
-    away = match.get("team_away", "Away")
-    home_short = home.split()[0]
-    away_short = away.split()[0]
+    score = match.get("score", {})
+    score_home = score.get("home", 0)
+    score_away = score.get("away", 0)
+    goal_diff = score_home - score_away
+    home = match.get("team_home", "Home").split()[0]
+    away = match.get("team_away", "Away").split()[0]
+
+    if goal_diff < 0:
+        return [
+            f"{home} equalizes",
+            f"Defensive substitution for {home}",
+            f"{home} switches to high press",
+        ]
+    if goal_diff > 0:
+        return [
+            f"{home} protects the lead",
+            f"{away} equalizes",
+            f"{home} scores again",
+        ]
     return [
-        f"{home_short} scores a goal",
-        f"{away_short} equalizes",
-        f"Double substitution for {home_short}",
-        f"{home_short} switches to high press",
-        "Both teams drop into low block",
-        "No major change — stalemate continues",
+        f"{home} scores first",
+        f"{away} scores first",
+        "Stalemate continues",
     ]
 
 
@@ -260,7 +299,7 @@ def _run_one_scenario(state, seed, index, on_thinking=None):
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
             stream=True,
-            extra_body={"enable_thinking": True},
+            extra_body={"enable_thinking": False},
         )
         thinking, content = _consume_stream(stream, on_thinking=on_thinking)
         parsed = _parse_scenario_json(content)
@@ -306,7 +345,7 @@ def run_simulate():
         t = threading.Thread(target=worker, args=(i, seed))
         threads.append(t)
         t.start()
-        time.sleep(0.5)
+        time.sleep(0.15)
     for t in threads:
         t.join()
 
@@ -328,50 +367,64 @@ def run_simulate_stream():
     event_queue = queue.Queue()
     done_lock = threading.Lock()
     remaining = len(seeds)
+    completed_count = 0
 
-    def worker(i, seed):
-        nonlocal remaining
-        started = time.time()
-        try:
-            event_queue.put(("scenario_start", {"index": i, "seed": seed}))
+    SIMULATE_PROGRESS["running"] = True
+    SIMULATE_PROGRESS["completed"] = 0
+    SIMULATE_PROGRESS["total"] = len(seeds)
 
-            def on_thinking(token):
-                event_queue.put(("thinking", {"index": i, "token": token}))
+    try:
+        yield _sse("progress", get_simulate_progress())
 
-            result = _run_one_scenario(state, seed, i, on_thinking=on_thinking)
-            if "response_ms" not in result:
-                result["response_ms"] = round((time.time() - started) * 1000)
-            scenarios[i] = result
-            event_queue.put(
-                ("scenario_done", {"index": i, "scenario": result, "response_ms": result["response_ms"]})
-            )
-        except Exception as e:
-            print(f"[simulate] stream worker {i} error: {e}")
-            fallback = _fallback_scenario(state, seed, i)
-            scenarios[i] = fallback
-            event_queue.put(("scenario_done", {"index": i, "scenario": fallback}))
-        finally:
-            with done_lock:
-                remaining -= 1
-                if remaining == 0:
-                    event_queue.put(("__done__", None))
+        def worker(i, seed):
+            nonlocal remaining, completed_count
+            started = time.time()
+            try:
+                event_queue.put(("scenario_start", {"index": i, "seed": seed}))
 
-    for i, seed in enumerate(seeds):
-        threading.Thread(target=worker, args=(i, seed), daemon=True).start()
-        time.sleep(0.5)
+                def on_thinking(token):
+                    event_queue.put(("thinking", {"index": i, "token": token}))
 
-    finished = False
-    while not finished:
-        kind, payload = event_queue.get()
-        if kind == "__done__":
-            finished = True
-            continue
-        yield _sse(kind, payload)
+                result = _run_one_scenario(state, seed, i, on_thinking=on_thinking)
+                if "response_ms" not in result:
+                    result["response_ms"] = round((time.time() - started) * 1000)
+                scenarios[i] = result
+                event_queue.put(
+                    ("scenario_done", {"index": i, "scenario": result, "response_ms": result["response_ms"]})
+                )
+            except Exception as e:
+                print(f"[simulate] stream worker {i} error: {e}")
+                fallback = _fallback_scenario(state, seed, i)
+                scenarios[i] = fallback
+                event_queue.put(("scenario_done", {"index": i, "scenario": fallback}))
+            finally:
+                with done_lock:
+                    remaining -= 1
+                    completed_count += 1
+                    SIMULATE_PROGRESS["completed"] = completed_count
+                    event_queue.put(("progress", get_simulate_progress()))
+                    if remaining == 0:
+                        event_queue.put(("__done__", None))
 
-    valid = [s for s in scenarios if s]
-    if not valid:
-        valid = [_fallback_scenario(state, seed, i) for i, seed in enumerate(seeds)]
+        for i, seed in enumerate(seeds):
+            threading.Thread(target=worker, args=(i, seed), daemon=True).start()
+            time.sleep(0.15)
 
-    _mark_most_likely(valid)
-    elapsed = round((time.time() - start) * 1000)
-    yield _sse("complete", {"scenarios": valid, "generated_ms": elapsed})
+        finished = False
+        while not finished:
+            kind, payload = event_queue.get()
+            if kind == "__done__":
+                finished = True
+                continue
+            yield _sse(kind, payload)
+
+        valid = [s for s in scenarios if s]
+        if not valid:
+            valid = [_fallback_scenario(state, seed, i) for i, seed in enumerate(seeds)]
+
+        _mark_most_likely(valid)
+        elapsed = round((time.time() - start) * 1000)
+        yield _sse("progress", get_simulate_progress())
+        yield _sse("complete", {"scenarios": valid, "generated_ms": elapsed})
+    finally:
+        SIMULATE_PROGRESS["running"] = False

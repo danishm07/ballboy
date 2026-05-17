@@ -5,12 +5,12 @@ import os
 import time
 from dotenv import load_dotenv
 
-MUTE_FILE = "/tmp/ballboy_mute"
-
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+MUTE_STATE = {"muted": False}
 
 
 def read_unified():
@@ -102,6 +102,20 @@ def detections():
             return jsonify(json.loads(content))
     except Exception:
         return jsonify({"players": [], "ball": None, "total": 0})
+
+
+@app.route("/calibration")
+def calibration():
+    try:
+        with open("calibration.json") as f:
+            content = f.read().strip()
+            if not content:
+                return jsonify({})
+            return jsonify(json.loads(content))
+    except FileNotFoundError:
+        return jsonify({})
+    except Exception:
+        return jsonify({})
 
 
 @app.route("/simulate")
@@ -201,17 +215,35 @@ def data_sources():
         return jsonify({"sources": [], "total_ms": 0, "pipeline": ""})
 
 
-@app.route("/mute", methods=["POST"])
-def mute():
+@app.route("/mute", methods=["GET", "POST"])
+def mute_endpoint():
+    if request.method == "GET":
+        return jsonify(MUTE_STATE)
     data = request.get_json(silent=True) or {}
-    if data.get("muted"):
-        open(MUTE_FILE, "w").close()
-    else:
+    MUTE_STATE["muted"] = bool(data.get("muted", False))
+    return jsonify({"ok": True, "muted": MUTE_STATE["muted"]})
+
+
+@app.route("/simulate/progress")
+def simulate_progress():
+    from simulate_agent import stream_simulate_progress
+
+    def generate():
         try:
-            os.remove(MUTE_FILE)
-        except OSError:
-            pass
-    return jsonify({"ok": True})
+            for chunk in stream_simulate_progress():
+                yield chunk
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e), 'running': False})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.route("/simulate/stream")

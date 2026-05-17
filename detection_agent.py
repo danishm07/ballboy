@@ -54,7 +54,7 @@ def detect_players():
         iou=0.3,
         verbose=False,
         classes=[0],
-        imgsz=640,
+        imgsz=480,
     )[0]
 
     players = []

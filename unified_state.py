@@ -1,23 +1,53 @@
 import copy
 import json
 import threading
+import time
 
 STATE_FILE = "unified_state.json"
 _lock = threading.Lock()
+
+PORTUGAL_LINEUP = [
+    {"name": "Rui Patricio", "position": "GK", "number": 1, "formation_index": 0},
+    {"name": "Cedric Soares", "position": "RB", "number": 21, "formation_index": 1},
+    {"name": "Pepe", "position": "CB", "number": 3, "formation_index": 2},
+    {"name": "Jose Fonte", "position": "CB", "number": 6, "formation_index": 3},
+    {"name": "Raphael Guerreiro", "position": "LB", "number": 5, "formation_index": 4},
+    {"name": "Adrien Silva", "position": "CM", "number": 23, "formation_index": 5},
+    {"name": "William Carvalho", "position": "CM", "number": 14, "formation_index": 6},
+    {"name": "Joao Moutinho", "position": "CM", "number": 8, "formation_index": 7},
+    {"name": "Bernardo Silva", "position": "RW", "number": 10, "formation_index": 8},
+    {"name": "Cristiano Ronaldo", "position": "ST", "number": 7, "formation_index": 9},
+    {"name": "Goncalo Guedes", "position": "LW", "number": 11, "formation_index": 10},
+]
+
+SPAIN_LINEUP = [
+    {"name": "David de Gea", "position": "GK", "number": 1, "formation_index": 0},
+    {"name": "Dani Carvajal", "position": "RB", "number": 2, "formation_index": 1},
+    {"name": "Gerard Pique", "position": "CB", "number": 3, "formation_index": 2},
+    {"name": "Sergio Ramos", "position": "CB", "number": 15, "formation_index": 3},
+    {"name": "Jordi Alba", "position": "LB", "number": 18, "formation_index": 4},
+    {"name": "Sergio Busquets", "position": "CM", "number": 5, "formation_index": 5},
+    {"name": "Koke", "position": "CM", "number": 6, "formation_index": 6},
+    {"name": "Andres Iniesta", "position": "CM", "number": 8, "formation_index": 7},
+    {"name": "David Silva", "position": "RW", "number": 21, "formation_index": 8},
+    {"name": "Diego Costa", "position": "ST", "number": 19, "formation_index": 9},
+    {"name": "Isco", "position": "LW", "number": 22, "formation_index": 10},
+]
 
 DEFAULT_STATE = {
     "match": {
         "minute": 0,
         "score": {"home": 0, "away": 0},
-        "team_home": "Arsenal FC",
-        "team_away": "Manchester City FC"
+        "team_home": "Portugal",
+        "team_away": "Spain"
     },
     "vision": {
         "possession_home": 50,
         "ball_zone": "unknown",
         "team_shape": "unknown",
         "tactical_description": "",
-        "confidence": 0.5
+        "confidence": 0.5,
+        "pressing_intensity": "medium",
     },
     "stats": {
         "shots_home": 0,
@@ -34,32 +64,8 @@ DEFAULT_STATE = {
         "live_xg_away": 0
     },
     "lineup": {
-        "home": [
-            {"name": "Raya", "position": "GK", "number": 22, "formation_index": 0},
-            {"name": "White", "position": "RB", "number": 4, "formation_index": 1},
-            {"name": "Saliba", "position": "CB", "number": 12, "formation_index": 2},
-            {"name": "Gabriel", "position": "CB", "number": 6, "formation_index": 3},
-            {"name": "Zinchenko", "position": "LB", "number": 35, "formation_index": 4},
-            {"name": "Odegaard", "position": "CM", "number": 8, "formation_index": 5},
-            {"name": "Partey", "position": "CM", "number": 5, "formation_index": 6},
-            {"name": "Rice", "position": "CM", "number": 41, "formation_index": 7},
-            {"name": "Saka", "position": "RW", "number": 7, "formation_index": 8},
-            {"name": "Havertz", "position": "ST", "number": 29, "formation_index": 9},
-            {"name": "Martinelli", "position": "LW", "number": 11, "formation_index": 10}
-        ],
-        "away": [
-            {"name": "Ederson", "position": "GK", "number": 31, "formation_index": 0},
-            {"name": "Walker", "position": "RB", "number": 2, "formation_index": 1},
-            {"name": "Dias", "position": "CB", "number": 3, "formation_index": 2},
-            {"name": "Akanji", "position": "CB", "number": 25, "formation_index": 3},
-            {"name": "Gvardiol", "position": "LB", "number": 24, "formation_index": 4},
-            {"name": "Rodri", "position": "CM", "number": 16, "formation_index": 5},
-            {"name": "De Bruyne", "position": "CM", "number": 17, "formation_index": 6},
-            {"name": "Silva", "position": "CM", "number": 20, "formation_index": 7},
-            {"name": "Mahrez", "position": "RW", "number": 26, "formation_index": 8},
-            {"name": "Haaland", "position": "ST", "number": 9, "formation_index": 9},
-            {"name": "Grealish", "position": "LW", "number": 10, "formation_index": 10}
-        ]
+        "home": PORTUGAL_LINEUP,
+        "away": SPAIN_LINEUP,
     },
     "prediction": {
         "goal_probability": 0,
@@ -68,38 +74,24 @@ DEFAULT_STATE = {
         "momentum": 50
     },
     "possession_history": [],
+    "smoothed_momentum": 50,
     "events": []
 }
 
+
+def smooth_momentum(state, new_value, key="smoothed_momentum"):
+    """EMA smooth momentum so the bar moves gradually between vision reads."""
+    try:
+        current = float(state.get(key, new_value))
+        new_value = float(new_value)
+    except (TypeError, ValueError):
+        return max(5, min(95, round(float(new_value or 50))))
+    smoothed = current * 0.7 + new_value * 0.3
+    return max(5, min(95, round(smoothed)))
+
 TEAM_LINEUPS = {
-    "portugal": [
-        {"name": "Costa", "position": "GK", "number": 22, "formation_index": 0},
-        {"name": "Cancelo", "position": "RB", "number": 20, "formation_index": 1},
-        {"name": "Dias", "position": "CB", "number": 4, "formation_index": 2},
-        {"name": "Pepe", "position": "CB", "number": 3, "formation_index": 3},
-        {"name": "Guerreiro", "position": "LB", "number": 5, "formation_index": 4},
-        {"name": "Neves", "position": "CM", "number": 18, "formation_index": 5},
-        {"name": "Vitinha", "position": "CM", "number": 23, "formation_index": 6},
-        {"name": "B. Fernandes", "position": "CM", "number": 8, "formation_index": 7},
-        {"name": "Bernardo", "position": "RW", "number": 10, "formation_index": 8},
-        {"name": "Ronaldo", "position": "ST", "number": 7, "formation_index": 9},
-        {"name": "Leao", "position": "LW", "number": 17, "formation_index": 10},
-    ],
-    "spain": [
-        {"name": "Simon", "position": "GK", "number": 23, "formation_index": 0},
-        {"name": "Carvajal", "position": "RB", "number": 2, "formation_index": 1},
-        {"name": "Laporte", "position": "CB", "number": 24, "formation_index": 2},
-        {"name": "Le Normand", "position": "CB", "number": 3, "formation_index": 3},
-        {"name": "Cucurella", "position": "LB", "number": 22, "formation_index": 4},
-        {"name": "Rodri", "position": "CM", "number": 16, "formation_index": 5},
-        {"name": "Ruiz", "position": "CM", "number": 8, "formation_index": 6},
-        {"name": "Olmo", "position": "CM", "number": 10, "formation_index": 7},
-        {"name": "Yamal", "position": "RW", "number": 19, "formation_index": 8},
-        {"name": "Morata", "position": "ST", "number": 7, "formation_index": 9},
-        {"name": "Williams", "position": "LW", "number": 17, "formation_index": 10},
-    ],
-    "arsenal": DEFAULT_STATE["lineup"]["home"],
-    "manchester city": DEFAULT_STATE["lineup"]["away"],
+    "portugal": PORTUGAL_LINEUP,
+    "spain": SPAIN_LINEUP,
 }
 
 
@@ -152,6 +144,7 @@ def read():
 
 
 def write(state):
+    state["timestamp"] = time.time()
     with _lock:
         with open(STATE_FILE, "w") as f:
             json.dump(state, f, indent=2)

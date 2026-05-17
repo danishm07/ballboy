@@ -1,38 +1,39 @@
 {
-  "headline": "Disorganized back line vulnerable",
-  "body": "At minute 54, Portugal 2\u20131 Spain, ball zone away_attack, the away team is attacking near the goal, leaving a disorganized back line vulnerable to counter-attacks during slow transition.",
+  "headline": "Shield Absent at Kickoff",
+  "body": "At minute 0, France 0\u20130 Argentina with ball zone unknown, the midfield shield is absent allowing direct runs at center backs while AI-powered real-time scoring runs through your screen.",
   "urgency": "high",
-  "action": "Compact shape immediately and cover defensive half-spaces",
-  "generated_ms": 3712,
-  "analyst_ms": 2649,
+  "action": "Drop holding midfielder immediately to protect central zone.",
+  "generated_ms": 1532,
+  "analyst_ms": 887,
   "analyst_times": {
-    "offensive": 886,
-    "physical": 1840,
-    "defensive": 2649
+    "physical": 673,
+    "offensive": 682,
+    "defensive": 886
   },
-  "synthesizer_ms": 1062,
-  "minute": 54,
+  "synthesizer_ms": 645,
+  "minute": 0,
+  "timestamp": 1779023376.323,
   "analysts": {
-    "offensive": {
-      "insight": "Space behind opposition right back during transition",
-      "urgency": "high",
-      "action": "Play early diagonal ball into the channel"
-    },
     "physical": {
-      "insight": "Minute 54 \u2014 late match fatigue rising, pressing intensity likely dropping, substitution window opening.",
-      "urgency": "medium",
-      "action": "Prepare fresh wide and central midfielders to maintain the lead."
+      "insight": "No substitution or fatigue risk detected at kickoff with stable possession.",
+      "urgency": "low",
+      "action": "Monitor baseline metrics for early shifts."
+    },
+    "offensive": {
+      "insight": "Exploit wide channels immediately as defensive shape is unknown.",
+      "urgency": "high",
+      "action": "Switch play to isolate full-backs"
     },
     "defensive": {
-      "insight": "Disorganized back line vulnerable to counter-attacks during slow transition",
+      "insight": "Midfield shield absent allowing direct runs at center backs.",
       "urgency": "high",
-      "action": "Compact shape immediately and cover defensive half-spaces"
+      "action": "Drop holding midfielder immediately to protect central zone."
     }
   },
   "prediction": {
-    "goal_probability": 80,
-    "sub_probability": 45,
-    "momentum": 62,
-    "minutes_remaining": 36
+    "goal_probability": 88,
+    "sub_probability": 2,
+    "momentum": 49,
+    "minutes_remaining": 90
   }
 }

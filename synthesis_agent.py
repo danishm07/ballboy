@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import time
 import threading
 from dotenv import load_dotenv
@@ -10,26 +11,34 @@ import unified_state as us
 load_dotenv()
 client = anthropic.Anthropic()
 
-ELEVENLABS_KEY = os.getenv("ELEVENLABS_API_KEY")
-VOICE_ID = "pNInz6obpgDQGcFmaJgB"
-MUTE_FILE = "/tmp/ballboy_mute"
 AUDIO_PATH = "/tmp/ballboy_alert.mp3"
+MUTE_URL = "http://localhost:5001/mute"
 
 results = {}
 lock = threading.Lock()
-last_headline = None
+last_spoken_headline = None
+
+
+def is_muted():
+    try:
+        r = requests.get(MUTE_URL, timeout=1)
+        return r.json().get("muted", False)
+    except Exception:
+        return False
 
 
 def speak(text):
-    if not ELEVENLABS_KEY:
+    key = os.getenv("ELEVENLABS_API_KEY")
+    if not key:
         return
-    if os.path.exists(MUTE_FILE):
+    if is_muted():
+        print("[voice] muted — skipping")
         return
     try:
         r = requests.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}",
+            "https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB",
             headers={
-                "xi-api-key": ELEVENLABS_KEY,
+                "xi-api-key": key,
                 "Content-Type": "application/json",
             },
             json={
@@ -37,25 +46,26 @@ def speak(text):
                 "model_id": "eleven_turbo_v2",
                 "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
             },
-            timeout=30,
+            timeout=10,
         )
         r.raise_for_status()
         with open(AUDIO_PATH, "wb") as f:
             f.write(r.content)
-        os.system(f"afplay {AUDIO_PATH} &")
+        subprocess.Popen(["afplay", AUDIO_PATH])
     except Exception as e:
         print(f"[voice] error: {e}")
 
-MODEL = "GLM-5.1"
+MODEL = "Qwen3.5-397B-A17B"
 
 analyst_times = {}
 
 
-def call_model(prompt, max_tokens=500):
+def call_model(prompt, max_tokens=300):
     r = client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
-        messages=[{"role": "user", "content": f"Reply with valid JSON only, no other text.\n\n{prompt}"}]
+        messages=[{"role": "user", "content": f"Reply with valid JSON only, no other text.\n\n{prompt}"}],
+        extra_body={"enable_thinking": False},
     )
     content = r.content[0].text.strip()
     start = content.find("{")
@@ -143,7 +153,7 @@ def run_analyst(name, unified_state_data):
         return
 
     try:
-        raw = call_model(prompt, max_tokens=200)
+        raw = call_model(prompt, max_tokens=150)
         with lock:
             results[name] = json.loads(raw)
             analyst_times[name] = round((time.time() - start) * 1000)
@@ -197,7 +207,7 @@ BAD body: "High risk of conceding. Drop deeper." """
 
     synth_start = time.time()
     try:
-        raw = call_model(combined_prompt, max_tokens=500)
+        raw = call_model(combined_prompt, max_tokens=300)
         insight = json.loads(raw)
     except Exception as e:
         print(f"  [synthesizer] error: {e}")
@@ -211,6 +221,7 @@ BAD body: "High risk of conceding. Drop deeper." """
     insight["analyst_times"] = dict(analyst_times)
     insight["synthesizer_ms"] = synthesizer_ms
     insight["minute"] = minute
+    insight["timestamp"] = time.time()
     insight["analysts"] = {k: v for k, v in results.items()}
     insight["prediction"] = {
         "goal_probability": prediction.get("goal_probability", 0),
@@ -222,31 +233,61 @@ BAD body: "High risk of conceding. Drop deeper." """
     with open("current_insight.json", "w") as f:
         json.dump(insight, f, indent=2)
 
-    global last_headline
+    global last_spoken_headline
+    urgency = str(insight.get("urgency", "low")).lower()
     headline = insight.get("headline", "")
-    urgency = str(insight.get("urgency", "")).lower()
-    if urgency == "high" and headline and headline != last_headline:
-        speak_text = f"{headline}. {insight.get('action', '')}"
-        speak(speak_text)
-    last_headline = headline
+    action = insight.get("action", "")
+
+    if urgency == "high" and headline and headline != last_spoken_headline:
+        speak_text = f"{headline}. {action}"
+        threading.Thread(target=speak, args=(speak_text,), daemon=True).start()
+        last_spoken_headline = headline
+        print(f"[voice] speaking: {headline}")
 
     print(f"[synthesis] '{insight.get('headline')}' — {insight.get('urgency')} — {total_time}ms total ({analyst_time}ms analysts)")
     return insight
+
+
+STATE_FRESH_SEC = 10
+
+
+def state_is_fresh(state, max_age=STATE_FRESH_SEC):
+    ts = state.get("timestamp")
+    if ts is None:
+        return False
+    try:
+        return (time.time() - float(ts)) <= max_age
+    except (TypeError, ValueError):
+        return False
 
 
 def run():
     print("[synthesis] starting parallel loop...")
     while True:
         try:
-            state = us.read()
-            with open("history_context.json") as f:
-                history = json.load(f)
-            synthesize_parallel(state, history)
+            with open(us.STATE_FILE) as f:
+                game_state = json.load(f)
+            if not state_is_fresh(game_state):
+                age = time.time() - float(game_state.get("timestamp", 0)) if game_state.get("timestamp") else None
+                print(f"[synthesis] skip — state not updated recently ({age:.0f}s ago)" if age else "[synthesis] skip — no state timestamp")
+            else:
+                minute = game_state.get("match", {}).get("minute", 0)
+                score = game_state.get("match", {}).get("score", {})
+                possession = game_state.get("vision", {}).get("possession_home", 50)
+                ball_zone = game_state.get("vision", {}).get("ball_zone", "unknown")
+                tactical_description = game_state.get("vision", {}).get("tactical_description", "")
+                print(
+                    f"[synthesis] min={minute} score={score} poss={possession}% "
+                    f"zone={ball_zone} tactic={tactical_description[:40]!r}"
+                )
+                with open("history_context.json") as f:
+                    history = json.load(f)
+                synthesize_parallel(game_state, history)
         except FileNotFoundError:
-            print("[synthesis] waiting for history context...")
+            print("[synthesis] waiting for unified_state.json / history_context.json...")
         except Exception as e:
             print(f"[synthesis] error: {e}")
-        time.sleep(15)
+        time.sleep(10)
 
 
 if __name__ == "__main__":
